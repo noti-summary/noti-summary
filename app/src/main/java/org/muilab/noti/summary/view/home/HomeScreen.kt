@@ -238,12 +238,12 @@ fun HomeScreen(
             val packageName = context.packageName
             try {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).setPackage(packageName)
                 context.startActivity(intent)
             } catch (e: ActivityNotFoundException) {
                 // Google Play Store app is not installed on the device, open the Play Store website
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).setPackage(packageName)
                 context.startActivity(intent)
             }
         }

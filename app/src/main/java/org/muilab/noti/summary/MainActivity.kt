@@ -1,20 +1,24 @@
 package org.muilab.noti.summary
 
 import android.app.ActivityManager
+import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
+import android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,6 +46,7 @@ import org.muilab.noti.summary.database.room.ScheduleDatabase
 import org.muilab.noti.summary.service.NotiListenerService
 import org.muilab.noti.summary.service.SummaryService
 import org.muilab.noti.summary.ui.theme.NotiappTheme
+import org.muilab.noti.summary.util.TAG
 import org.muilab.noti.summary.view.MainScreenView
 import org.muilab.noti.summary.view.settings.APICreationLink
 import org.muilab.noti.summary.view.settings.APIKeyEditor
@@ -55,6 +60,7 @@ import org.muilab.noti.summary.viewModel.SummaryViewModel
 
 class MainActivity : ComponentActivity() {
 
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -63,7 +69,11 @@ class MainActivity : ComponentActivity() {
         val summaryServiceIntent = Intent(this, SummaryService::class.java)
         if (!isServiceRunning(SummaryService::class.java)) {
             Log.d("SummaryService", "Start service")
-            startService(summaryServiceIntent)
+            startService(
+                summaryServiceIntent.apply {
+                    setPackage(packageName)
+                }
+            )
         }
         bindService(summaryServiceIntent, summaryServiceConnection, Context.BIND_AUTO_CREATE)
 
@@ -88,10 +98,10 @@ class MainActivity : ComponentActivity() {
                             onAgree = {
                                 if (isNotiListenerEnabled()) {
                                     with(sharedPref.edit()) {
-                                        putString("initStatus", "SHOW_FILTER_NOTICE")
+                                        putString("initStatus", "ALLOW_EXACT_ALARM")
                                         apply()
                                     }
-                                    initStatus = "SHOW_FILTER_NOTICE"
+                                    initStatus = "ALLOW_EXACT_ALARM"
                                 } else {
                                     Toast.makeText(
                                         this,
@@ -105,7 +115,21 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
+                    "ALLOW_EXACT_ALARM" -> {
+                        Log.d(TAG, "ALLOW_EXACT_ALARM")
+                        val alarmManager: AlarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                        if (!alarmManager.canScheduleExactAlarms()) {
+                            startActivity(Intent(ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                        } else {
+                            with(sharedPref.edit()) {
+                                putString("initStatus", "SHOW_FILTER_NOTICE")
+                                apply()
+                            }
+                            initStatus = "SHOW_FILTER_NOTICE"
+                        }
+                    }
                     "SHOW_FILTER_NOTICE" -> {
+                        Log.d(TAG, "SHOW_FILTER_NOTICE")
                         if (!isNotiListenerEnabled())
                             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                         FilterNotify(onAgree = {
@@ -117,6 +141,7 @@ class MainActivity : ComponentActivity() {
                         })
                     }
                     "USER_READY" -> {
+                        Log.d(TAG, "USER_READY")
                         val showDialog = remember { mutableStateOf(true) }
                         val selectedOption = apiViewModel.apiKey.value
                         if (selectedOption?.startsWith("sk-") == true) {
@@ -178,7 +203,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     "USER_PROVIDED_KEY" -> {
-                        startService(notiListenerIntent)
+                        startService(
+                            notiListenerIntent.apply {
+                                setPackage(packageName)
+                            }
+                        )
                         MainScreenView(
                             this,
                             sumViewModel,
@@ -200,9 +229,9 @@ class MainActivity : ComponentActivity() {
             startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
 
         val allNotiFilter = IntentFilter("edu.mui.noti.summary.RETURN_ALLNOTIS")
-        registerReceiver(allNotiReturnReceiver, allNotiFilter)
+        registerReceiver(allNotiReturnReceiver, allNotiFilter, RECEIVER_NOT_EXPORTED)
         val newStatusFilter = IntentFilter("edu.mui.noti.summary.UPDATE_STATUS")
-        registerReceiver(newStatusReceiver, newStatusFilter)
+        registerReceiver(newStatusReceiver, newStatusFilter, RECEIVER_NOT_EXPORTED)
         sumViewModel.updateNotiDrawer()
         sumViewModel.updateStatus()
     }

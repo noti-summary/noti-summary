@@ -96,6 +96,7 @@ fun SchedulerScreen(context: Context, scheduleViewModel: ScheduleViewModel) {
                         val intent = Intent().apply {
                             action = Settings.ACTION_APP_NOTIFICATION_SETTINGS
                             putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            setPackage(context.packageName)
                         }
                         context.startActivity(intent)
                     }

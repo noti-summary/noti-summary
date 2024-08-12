@@ -7,14 +7,14 @@ plugins {
 
 android {
     namespace 'org.muilab.noti.summary'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "org.muilab.noti.summary"
         minSdk 29
-        targetSdk 33
-        versionCode 20000
-        versionName "2.0.0"
+        targetSdk 34
+        versionCode 20001
+        versionName "2.0.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -96,8 +96,8 @@ dependencies {
 
     implementation "androidx.webkit:webkit:1.4.0"
 
-    implementation 'com.google.android.play:app-update:2.0.1'
-    implementation 'com.google.android.play:app-update-ktx:2.0.1'
+    implementation 'com.google.android.play:app-update:2.1.0'
+    implementation 'com.google.android.play:app-update-ktx:2.1.0'
 
     implementation "com.aallam.openai:openai-client:3.5.0"
     implementation("io.ktor:ktor-client-cio:2.3.5")

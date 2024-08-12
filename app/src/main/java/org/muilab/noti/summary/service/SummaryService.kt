@@ -12,8 +12,10 @@ import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -241,12 +243,13 @@ class SummaryService : Service(), LifecycleOwner {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate() {
         super.onCreate()
         lifecycleRegistry = LifecycleRegistry(this)
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
         val allNotiFilterScheduled = IntentFilter("edu.mui.noti.summary.RETURN_ALLNOTIS_SCHEDULED")
-        registerReceiver(allNotiReturnReceiver, allNotiFilterScheduled)
+        registerReceiver(allNotiReturnReceiver, allNotiFilterScheduled, RECEIVER_NOT_EXPORTED)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -283,7 +286,11 @@ class SummaryService : Service(), LifecycleOwner {
     private fun updateStatusText(newStatus: String) {
         statusText = newStatus
         val updateIntent = Intent("edu.mui.noti.summary.UPDATE_STATUS")
-        sendBroadcast(updateIntent)
+        sendBroadcast(
+            updateIntent.apply {
+                setPackage(packageName)
+            }
+        )
     }
 
     private fun notifySummary(responseStr: String) {

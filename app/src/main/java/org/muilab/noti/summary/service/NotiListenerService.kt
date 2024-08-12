@@ -37,7 +37,11 @@ class NotiListenerService: NotificationListenerService() {
             getNotiDrawer(applicationContext, databaseNotifications, appFilter)
         }
         val updateIntent = Intent("edu.mui.noti.summary.UPDATE_STATUS")
-        sendBroadcast(updateIntent)
+        sendBroadcast(
+            updateIntent.apply {
+                setPackage(packageName)
+            }
+        )
         Log.i(TAG, "Connected!")
         connected = true
     }
@@ -56,7 +60,11 @@ class NotiListenerService: NotificationListenerService() {
             if (intent?.action == "edu.mui.noti.summary.REQUEST_ALLNOTIS") {
                 val broadcastIntent = Intent("edu.mui.noti.summary.RETURN_ALLNOTIS")
                 broadcastIntent.putExtra("activeKeys", getActiveKeys())
-                sendBroadcast(broadcastIntent)
+                sendBroadcast(
+                    broadcastIntent.apply {
+                        setPackage(packageName)
+                    }
+                )
             }
         }
     }
@@ -66,7 +74,11 @@ class NotiListenerService: NotificationListenerService() {
             if (intent?.action == "edu.mui.noti.summary.REQUEST_ALLNOTIS_SCHEDULED") {
                 val broadcastIntent = Intent("edu.mui.noti.summary.RETURN_ALLNOTIS_SCHEDULED")
                 broadcastIntent.putExtra("activeKeys", getActiveKeys())
-                sendBroadcast(broadcastIntent)
+                sendBroadcast(
+                    broadcastIntent.apply {
+                        setPackage(packageName)
+                    }
+                )
             }
         }
     }

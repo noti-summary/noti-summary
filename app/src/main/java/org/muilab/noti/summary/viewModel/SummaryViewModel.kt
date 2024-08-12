@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.*
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.gson.Gson
@@ -15,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import org.muilab.noti.summary.model.NotiUnit
 import org.muilab.noti.summary.service.SummaryService
+import org.muilab.noti.summary.util.TAG
 import org.muilab.noti.summary.util.getAppFilter
 import org.muilab.noti.summary.util.getDatabaseNotifications
 import org.muilab.noti.summary.util.getNotiDrawer
@@ -85,7 +88,12 @@ class SummaryViewModel(application: Application) : AndroidViewModel(application)
 
     fun getSummaryText() {
         val intent = Intent("edu.mui.noti.summary.REQUEST_ALLNOTIS")
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+        Log.d(TAG, "getSummaryText");
+        LocalBroadcastManager.getInstance(context).sendBroadcast(
+            intent.apply {
+                setPackage(context.packageName)
+            }
+        )
     }
 
     fun updateStatus() {
