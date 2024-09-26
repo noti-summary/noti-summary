@@ -22,7 +22,7 @@ class APIKeyViewModel(application: Application, apiKeyDatabase: APIKeyDatabase) 
     @SuppressLint("StaticFieldLeak")
     private val context = getApplication<Application>().applicationContext
 
-    private val defaultAPI = context.getString(R.string.system_key)
+    private val keyNotProvided = context.getString(R.string.key_not_provided)
     private val _apiKey = MutableLiveData<String>()
     val apiKey: LiveData<String> = _apiKey
     val allAPIKey: LiveData<List<String>> = apiKeyDao.getAllAPI().asLiveData()
@@ -30,7 +30,7 @@ class APIKeyViewModel(application: Application, apiKeyDatabase: APIKeyDatabase) 
     private val scope = viewModelScope + Dispatchers.IO
 
     init {
-        val resultValue = sharedPreferences.getString("userAPIKey", defaultAPI)
+        val resultValue = sharedPreferences.getString("userAPIKey", keyNotProvided)
         _apiKey.value = resultValue!!
     }
 
@@ -45,7 +45,7 @@ class APIKeyViewModel(application: Application, apiKeyDatabase: APIKeyDatabase) 
     fun chooseAPI(updateAPIKey: String) {
         if (_apiKey.value != updateAPIKey) {
             _apiKey.postValue(updateAPIKey)
-            if (updateAPIKey == context.getString(R.string.system_key))
+            if (updateAPIKey == context.getString(R.string.key_not_provided))
                 sharedPreferences.edit().remove("userAPIKey").apply()
             else
                 sharedPreferences.edit().putString("userAPIKey", updateAPIKey).apply()
@@ -53,9 +53,11 @@ class APIKeyViewModel(application: Application, apiKeyDatabase: APIKeyDatabase) 
     }
 
     fun deleteAPI(apiKey: String) {
-        scope.launch {
-            apiKeyDao.deleteByAPIKey(apiKey)
+        if (allAPIKey.value?.size!! > 1) {
+            scope.launch {
+                apiKeyDao.deleteByAPIKey(apiKey)
+                chooseAPI(apiKeyDao.getAllAPIStatic()[0])
+            }
         }
-        chooseAPI(defaultAPI)
     }
 }

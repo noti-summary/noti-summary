@@ -1,52 +1,66 @@
 package org.muilab.noti.summary.service
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.*
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.os.Binder
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.annotation.RequiresApi
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.lifecycle.*
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.firestore.ktx.toObject
-import com.google.firebase.ktx.Firebase
-import com.google.gson.Gson
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import com.aallam.openai.api.chat.ChatCompletionRequest
+import com.aallam.openai.api.chat.ChatMessage
+import com.aallam.openai.api.chat.ChatRole
+import com.aallam.openai.api.exception.AuthenticationException
+import com.aallam.openai.api.exception.OpenAIAPIException
+import com.aallam.openai.api.exception.OpenAIHttpException
+import com.aallam.openai.api.exception.RateLimitException
+import com.aallam.openai.api.http.Timeout
+import com.aallam.openai.api.model.ModelId
+import com.aallam.openai.client.OpenAI
+import com.aallam.openai.client.OpenAIConfig
 import com.zqc.opencc.android.lib.ChineseConverter
 import com.zqc.opencc.android.lib.ConversionType
-import io.github.cdimascio.dotenv.dotenv
+import io.ktor.util.network.UnresolvedAddressException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.coroutines.withTimeout
 import org.muilab.noti.summary.MainActivity
 import org.muilab.noti.summary.R
 import org.muilab.noti.summary.model.NotiUnit
-import org.muilab.noti.summary.model.UserCredit
-import org.muilab.noti.summary.util.*
+import org.muilab.noti.summary.util.TAG
+import org.muilab.noti.summary.util.getAppFilter
+import org.muilab.noti.summary.util.getDatabaseNotifications
+import org.muilab.noti.summary.util.getNotiDrawer
+import org.muilab.noti.summary.util.isNetworkConnected
 import org.muilab.noti.summary.view.home.SummaryResponse
-import java.io.IOException
-import java.io.InterruptedIOException
-import java.util.concurrent.TimeUnit
+import java.util.LinkedList
+import java.util.Queue
+import kotlin.collections.set
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration.Companion.minutes
+
 
 class SummaryService : Service(), LifecycleOwner {
 
     private lateinit var lifecycleRegistry: LifecycleRegistry
-
-    private val dotenv = dotenv {
-        directory = "./assets"
-        filename = "env"
-    }
-
-    private val serverURL = dotenv["SUMMARY_URL"]
-    private val mediaType = "application/json; charset=utf-8".toMediaType()
 
     // Binder given to clients
     private val binder = SummaryBinder()
@@ -54,12 +68,15 @@ class SummaryService : Service(), LifecycleOwner {
     private lateinit var summaryPref: SharedPreferences
     private lateinit var promptPref: SharedPreferences
     private lateinit var apiPref: SharedPreferences
+    private var NOTI_THRESHOLD = 0
+    private var SUMMARY_THRESHOLD = 0
     private var statusText = ""
 
-    private fun getPostContent(activeNotifications: ArrayList<NotiUnit>): String {
+    private fun getPostContent(activeNotifications: ArrayList<NotiUnit>): ArrayList<String> {
+
+        val contentList = arrayListOf<String>()
 
         val sb = StringBuilder()
-        activeNotifications.shuffle()
         activeNotifications.forEach { noti ->
 
             val filterMap = mutableMapOf<String, String>()
@@ -73,9 +90,15 @@ class SummaryService : Service(), LifecycleOwner {
                     .values
                     .joinToString(separator = ", ")
 
+            if (sb.length + input.length > NOTI_THRESHOLD) {
+                contentList.add(sb.toString())
+                sb.clear()
+            }
             sb.append("$input\n")
         }
-        return sb.toString()
+        if (sb.isNotEmpty())
+            contentList.add(sb.toString())
+        return contentList
     }
 
     suspend fun sendToServer(
@@ -91,167 +114,124 @@ class SummaryService : Service(), LifecycleOwner {
                 databaseNotifications,
                 appFilterMap
             )
-            uploadNotifications(
-                applicationContext,
-                databaseNotifications,
-                "dbNoti",
-                "REASON_GEN_SUMMARY",
-                appFilterMap
-            )
 
             updateStatusText(getString(SummaryResponse.GENERATING.message))
 
             var responseStr = ""
-
-            if (summarizedNotifications.isNotEmpty()) {
-
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(300, TimeUnit.SECONDS)
-                    .writeTimeout(300, TimeUnit.SECONDS)
-                    .readTimeout(300, TimeUnit.SECONDS)
-                    .callTimeout(300, TimeUnit.SECONDS)
-                    .build()
-
-                data class GPTRequest(val prompt: String, val content: String)
-                data class GPTRequestWithKey(
-                    val prompt: String,
-                    val content: String,
-                    val key: String
+            val userAPIKey = apiPref.getString("userAPIKey", getString(R.string.key_not_provided))!!
+            val openAI = run {
+                val config = OpenAIConfig(
+                    userAPIKey,
+                    timeout = Timeout(15.minutes, 20.minutes, 25.minutes)
                 )
+                OpenAI(config)
+            }
+            val modelChoice = summaryPref.getBoolean("model", false)
+            val model = if (modelChoice) "gpt-4" else "gpt-3.5-turbo-16k"
+            NOTI_THRESHOLD = if (modelChoice) 8000 else 16000
+            SUMMARY_THRESHOLD = if (modelChoice) 12000 else 24000
 
-                val userAPIKey = apiPref.getString("userAPIKey", getString(R.string.system_key))!!
-
-                val requestURL = if (userAPIKey == getString(R.string.system_key)) {
-                    serverURL
-                } else {
-                    "$serverURL/key"
-                }
+            if (!isNetworkConnected(applicationContext))
+                responseStr = getString(SummaryResponse.NETWORK_ERROR.message)
+            else if (summarizedNotifications.isNotEmpty() && userAPIKey != getString(R.string.key_not_provided)) {
 
                 val postContent = getPostContent(summarizedNotifications)
+                postContent.forEach{ Log.d("len", "${it.length}") }
                 val prompt = promptPref.getString(
                     "curPrompt",
                     getString(R.string.default_summary_prompt)
                 ) as String
-                Log.d("sendToServer", "current prompt: $prompt")
 
-                @Suppress("IMPLICIT_CAST_TO_ANY")
-                val gptRequest = if (userAPIKey == getString(R.string.system_key)) {
-                    GPTRequest(prompt, postContent)
-                } else {
-                    GPTRequestWithKey(prompt, postContent, userAPIKey)
-                }
-
-                val postBody = Gson().toJson(gptRequest)
-
-                val request = Request.Builder()
-                    .url(requestURL)
-                    .post(postBody.toRequestBody(mediaType))
-                    .build()
-
-                try {
-                    val submitTime = System.currentTimeMillis()
-                    val response = client.newCall(request).execute()
-                    if (response.isSuccessful) {
-                        val responseText =
-                            response.body?.string()?.replace("\\n", "\r\n")?.replace("\\", "")
-                                ?.removeSurrounding("\"")
-                        val summary = ChineseConverter.convert(
+                Log.d(TAG, userAPIKey)
+                val subSummaries = mutableListOf<String>()
+                for (chunk in postContent) {
+                    val chatCompletionRequest = ChatCompletionRequest(
+                        model = ModelId(model),
+                        messages = listOf(
+                            ChatMessage(
+                                role = ChatRole.System,
+                                content = getString(R.string.prompt_opening)
+                            ),
+                            ChatMessage(
+                                role = ChatRole.User,
+                                content = chunk
+                            ),
+                            ChatMessage(
+                                role = ChatRole.System,
+                                content = prompt
+                            )
+                        )
+                    )
+                    try {
+                        val response = openAI.chatCompletion(chatCompletionRequest)
+                        val message = response.choices.first().message
+                        val finishReason = response.choices.first().finishReason
+                        Log.d(TAG, "${message.content} $finishReason")
+                        val responseText = message.content?.replace("\\n", "\r\n")?.replace("\\", "")
+                            ?.removeSurrounding("\"")
+                        val subSummary = ChineseConverter.convert(
                             responseText,
                             ConversionType.S2TWP,
                             applicationContext
                         )
-                        if (summary != null) {
-
-                            if (userAPIKey == getString(R.string.system_key))
-                                subtractCredit()
-                            logUserAction("genSummary", "Success", applicationContext)
-
-                            with(summaryPref.edit()) {
-                                putString("resultValue", summary)
-                                putLong("submitTime", submitTime)
-                                putBoolean("isScheduled", isScheduled)
-                                putString("prompt", prompt)
-
-                                val notiData = summarizedNotifications.map {
-                                    SummaryNoti(it)
-                                }
-                                val notiDataJson = Gson().toJson(notiData)
-                                putString("notiData", notiDataJson)
-
-                                val notiFilterPrefs =
-                                    getSharedPreferences("noti_filter", Context.MODE_PRIVATE)
-
-                                val notiScope = mutableMapOf<String, Boolean>()
-                                notiScope["appName"] = notiFilterPrefs.getBoolean(
-                                    getString(R.string.application_name),
-                                    true
-                                )
-                                notiScope["time"] = notiFilterPrefs.getBoolean(
-                                    getString(R.string.time),
-                                    true
-                                )
-                                notiScope["title"] = notiFilterPrefs.getBoolean(
-                                    getString(R.string.title),
-                                    true
-                                )
-                                notiScope["content"] = notiFilterPrefs.getBoolean(
-                                    getString(R.string.content),
-                                    true
-                                )
-                                val notiScopeJson = Gson().toJson(notiScope)
-                                putString("notiScope", notiScopeJson)
-
-                                val summaryLength = getWordCount(summary)
-                                val summaryLengthJson = Gson().toJson(summaryLength)
-                                putString("summaryLength", summaryLengthJson)
-
-                                putString("removedNotis", "{}")
-                                putInt("rating", 0)
-
-                                apply()
-                            }
-                            logSummary(applicationContext)
-                            responseStr = summary
-                        } else {
-                            logUserAction("genSummary", "ServerError", applicationContext)
-                            responseStr = getString(SummaryResponse.SERVER_ERROR.message)
+                        subSummaries.add(subSummary)
+                    } catch (e: OpenAIAPIException) {
+                        Log.d("Error", e.stackTraceToString())
+                        responseStr = when (e.statusCode) {
+                            401 -> getString(SummaryResponse.APIKEY_ERROR.message)
+                            402 -> getString(SummaryResponse.APIKEY_ERROR.message)
+                            429 -> getString(SummaryResponse.QUOTA_ERROR.message)
+                            500 -> getString(SummaryResponse.SERVER_ERROR.message)
+                            503 -> getString(SummaryResponse.TIMEOUT_ERROR.message)
+                            else -> getString(SummaryResponse.UNKNOWN_ERROR.message)
                         }
-                    } else {
-                        response.body?.let {
-                            val responseBody = it.string()
-                            Log.i("ServerResponse", responseBody)
-                            responseStr =
-                                if (responseBody.contains("You didn't provide an API key") ||
-                                    responseBody.contains("Incorrect API key provided") ||
-                                    responseBody.contains("invalid_api_key")
-                                ) {
-                                    logUserAction("genSummary", "KeyError", applicationContext)
-                                    getString(SummaryResponse.APIKEY_ERROR.message)
-                                } else if (responseBody.contains("exceeded your current quota")) {
-                                    logUserAction("genSummary", "NoQuota", applicationContext)
-                                    getString(SummaryResponse.QUOTA_ERROR.message)
-                                } else {
-                                    logUserAction("genSummary", "ServerError", applicationContext)
-                                    getString(SummaryResponse.SERVER_ERROR.message)
-                                }
-                        } ?: let {
-                            logUserAction("genSummary", "ServerError", applicationContext)
-                            responseStr = getString(SummaryResponse.SERVER_ERROR.message)
-                        }
+                        break
+                    } catch (e: AuthenticationException) {
+                        Log.d("Error", e.stackTraceToString())
+                        responseStr = getString(SummaryResponse.APIKEY_ERROR.message)
+                        break
+                    } catch (e: RateLimitException) {
+                        Log.d("Error", e.stackTraceToString())
+                        responseStr = getString(SummaryResponse.TIMEOUT_ERROR.message)
+                        break
+                    } catch (e: Exception) {
+                        Log.d("Error", e.stackTraceToString())
+                        responseStr = getString(SummaryResponse.UNKNOWN_ERROR.message)
                     }
-                    response.close()
-                } catch (e: InterruptedIOException) {
-                    Log.i("InterruptedIOException", e.toString())
-                    logUserAction("genSummary", "ServerTimeout", applicationContext)
-                    responseStr = getString(SummaryResponse.TIMEOUT_ERROR.message)
-                } catch (e: IOException) {
-                    Log.i("IOException", e.toString())
-                    logUserAction("genSummary", "NetworkError", applicationContext)
-                    responseStr = getString(SummaryResponse.NETWORK_ERROR.message)
-                } catch (e: Exception) {
-                    Log.i("Exception in sendToServer", e.toString())
-                    logUserAction("genSummary", "ServerError", applicationContext)
-                    responseStr = getString(SummaryResponse.SERVER_ERROR.message)
+                }
+                if (subSummaries.size == 1)
+                    responseStr = subSummaries[0]
+
+
+                else if (subSummaries.isNotEmpty()) {
+
+                    val queue: Queue<String> = LinkedList(subSummaries)
+                    while (queue.size > 1) {
+                        val sb = StringBuilder()
+                        while (queue.isNotEmpty() && (sb.length + queue.peek()?.length!! <= SUMMARY_THRESHOLD)) {
+                            Log.d("len", "${queue.peek()?.length}")
+                            sb.append("${queue.peek()}\n\n")
+                            queue.remove()
+                        }
+
+                        val chatCompletionRequest = ChatCompletionRequest(
+                            model = ModelId(model),
+                            messages = listOf(
+                                ChatMessage(
+                                    role = ChatRole.User,
+                                    content = sb.toString()
+                                ),
+                                ChatMessage(
+                                    role = ChatRole.System,
+                                    content = "${getString(R.string.prompt_subsummary1)}$prompt${getString(R.string.prompt_subsummary2)}"
+                                )
+                            )
+                        )
+                        val response = openAI.chatCompletion(chatCompletionRequest)
+                        val message = response.choices.first().message
+                        queue.add(message.content)
+                    }
+                    responseStr = queue.peek()!!
                 }
             } else {
                 responseStr = getString(SummaryResponse.NO_NOTIFICATION.message)
@@ -263,26 +243,13 @@ class SummaryService : Service(), LifecycleOwner {
         }
     }
 
-    private fun subtractCredit() {
-        val sharedPref = getSharedPreferences("user", Context.MODE_PRIVATE)
-        val userId = sharedPref.getString("user_id", "000").toString()
-
-        val db = Firebase.firestore
-        val docRef = db.collection("user").document(userId)
-        docRef.get().addOnSuccessListener { document ->
-            if (document != null) {
-                val res = document.toObject<UserCredit>()!!
-                docRef.update("credit", res.credit - 1)
-            }
-        }
-    }
-
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate() {
         super.onCreate()
         lifecycleRegistry = LifecycleRegistry(this)
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
         val allNotiFilterScheduled = IntentFilter("edu.mui.noti.summary.RETURN_ALLNOTIS_SCHEDULED")
-        registerReceiver(allNotiReturnReceiver, allNotiFilterScheduled)
+        registerReceiver(allNotiReturnReceiver, allNotiFilterScheduled, RECEIVER_NOT_EXPORTED)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -319,7 +286,11 @@ class SummaryService : Service(), LifecycleOwner {
     private fun updateStatusText(newStatus: String) {
         statusText = newStatus
         val updateIntent = Intent("edu.mui.noti.summary.UPDATE_STATUS")
-        sendBroadcast(updateIntent)
+        sendBroadcast(
+            updateIntent.apply {
+                setPackage(packageName)
+            }
+        )
     }
 
     private fun notifySummary(responseStr: String) {
@@ -347,6 +318,20 @@ class SummaryService : Service(), LifecycleOwner {
         notificationManager.createNotificationChannel(channel)
 
         val notificationManagerCompat = NotificationManagerCompat.from(applicationContext)
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return
+        }
         notificationManagerCompat.notify(0, builder.build())
     }
 
@@ -356,7 +341,20 @@ class SummaryService : Service(), LifecycleOwner {
                 val activeKeys = intent.getSerializableExtra("activeKeys") as? ArrayList<Pair<String, String>>
                 if (activeKeys != null) {
                     CoroutineScope(Dispatchers.IO).launch {
-                        sendToServer(activeKeys, true)
+                        try {
+                            val timeoutThreshold = 600000L
+                            withTimeout(timeoutThreshold) {
+                                sendToServer(activeKeys, true)
+                            }
+                        } catch (e: TimeoutCancellationException) {
+                            updateStatusText(getString(SummaryResponse.TIMEOUT_ERROR.message))
+                        } catch (e: java.util.concurrent.CancellationException) {
+                            updateStatusText(getString(SummaryResponse.TIMEOUT_ERROR.message))
+                        } catch (e: CancellationException) {
+                            updateStatusText(getString(SummaryResponse.TIMEOUT_ERROR.message))
+                        } catch (e: Exception) {
+                            updateStatusText(getString(SummaryResponse.UNKNOWN_ERROR.message))
+                        }
                     }
                 }
             }

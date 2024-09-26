@@ -22,8 +22,6 @@ import org.muilab.noti.summary.util.TAG
 import org.muilab.noti.summary.util.getAppFilter
 import org.muilab.noti.summary.util.getDatabaseNotifications
 import org.muilab.noti.summary.util.getNotiDrawer
-import org.muilab.noti.summary.util.logSummary
-import org.muilab.noti.summary.util.uploadNotifications
 
 class NotiListenerService: NotificationListenerService() {
 
@@ -39,7 +37,11 @@ class NotiListenerService: NotificationListenerService() {
             getNotiDrawer(applicationContext, databaseNotifications, appFilter)
         }
         val updateIntent = Intent("edu.mui.noti.summary.UPDATE_STATUS")
-        sendBroadcast(updateIntent)
+        sendBroadcast(
+            updateIntent.apply {
+                setPackage(packageName)
+            }
+        )
         Log.i(TAG, "Connected!")
         connected = true
     }
@@ -58,13 +60,10 @@ class NotiListenerService: NotificationListenerService() {
             if (intent?.action == "edu.mui.noti.summary.REQUEST_ALLNOTIS") {
                 val broadcastIntent = Intent("edu.mui.noti.summary.RETURN_ALLNOTIS")
                 broadcastIntent.putExtra("activeKeys", getActiveKeys())
-                sendBroadcast(broadcastIntent)
-                uploadNotifications(
-                    applicationContext,
-                    getActiveNotiUnits(),
-                    "systemNoti",
-                    "REASON_GEN_SUMMARY",
-                    getAppFilter(applicationContext)
+                sendBroadcast(
+                    broadcastIntent.apply {
+                        setPackage(packageName)
+                    }
                 )
             }
         }
@@ -75,13 +74,10 @@ class NotiListenerService: NotificationListenerService() {
             if (intent?.action == "edu.mui.noti.summary.REQUEST_ALLNOTIS_SCHEDULED") {
                 val broadcastIntent = Intent("edu.mui.noti.summary.RETURN_ALLNOTIS_SCHEDULED")
                 broadcastIntent.putExtra("activeKeys", getActiveKeys())
-                sendBroadcast(broadcastIntent)
-                uploadNotifications(
-                    applicationContext,
-                    getActiveNotiUnits(),
-                    "systemNoti",
-                    "REASON_GEN_SUMMARY",
-                    getAppFilter(applicationContext)
+                sendBroadcast(
+                    broadcastIntent.apply {
+                        setPackage(packageName)
+                    }
                 )
             }
         }
@@ -133,25 +129,11 @@ class NotiListenerService: NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (!sbn.isOngoing && sbn.packageName != packageName) {
             insertNoti(sbn)
-            uploadNotifications(
-                applicationContext,
-                getActiveNotiUnits(),
-                "systemNoti",
-                "REASON_POSTED",
-                getAppFilter(applicationContext)
-            )
             CoroutineScope(Dispatchers.IO).launch {
                 val activeKeys = getActiveKeys()
                 val databaseNotifications = getDatabaseNotifications(applicationContext, activeKeys)
                 val appFilter = getAppFilter(applicationContext)
                 getNotiDrawer(applicationContext, databaseNotifications, appFilter)
-                uploadNotifications(
-                    applicationContext,
-                    databaseNotifications,
-                    "dbNoti",
-                    "REASON_POSTED",
-                    appFilter
-                )
             }
         }
     }
@@ -216,28 +198,11 @@ class NotiListenerService: NotificationListenerService() {
         val newRemovedNotisJson = Gson().toJson(removedNotis)
         summarySharedPref.edit().putString("removedNotis", newRemovedNotisJson).apply()
 
-        if (summarySharedPref.getLong("submitTime", 0) != 0L)
-            logSummary(applicationContext)
-
-        uploadNotifications(
-            applicationContext,
-            getActiveNotiUnits(),
-            "systemNoti",
-            reasonStr,
-            getAppFilter(applicationContext)
-        )
         CoroutineScope(Dispatchers.IO).launch {
             val activeKeys = getActiveKeys()
             val databaseNotifications = getDatabaseNotifications(applicationContext, activeKeys)
             val appFilter = getAppFilter(applicationContext)
             getNotiDrawer(applicationContext, databaseNotifications, appFilter)
-            uploadNotifications(
-                applicationContext,
-                databaseNotifications,
-                "dbNoti",
-                reasonStr,
-                appFilter
-            )
         }
     }
 
@@ -289,10 +254,4 @@ class NotiListenerService: NotificationListenerService() {
         return sbnKeys
     }
 
-    fun getActiveNotiUnits(): ArrayList<NotiUnit> {
-        return activeNotifications
-            .map { NotiUnit(applicationContext, it) }
-            .filter { it.pkgName != packageName }
-            .toCollection(ArrayList())
-    }
 }

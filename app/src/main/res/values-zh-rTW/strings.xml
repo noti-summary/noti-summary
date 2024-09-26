@@ -23,8 +23,9 @@
     <string name="no_noti_msg">您的手機目前沒有通知</string>
     <string name="network_err_msg">無法連線，請確認您的網路設定</string>
     <string name="default_key">預設 API 金鑰</string>
-    <string name="system_key">系統金鑰</string>
+    <string name="key_not_provided">未提供金鑰</string>
     <string name="user_key">使用者 API 金鑰</string>
+    <string name="unknown_err_msg">發生錯誤，請稍後再試</string>
     <string name="server_err_msg">伺服器發生錯誤，請稍後再試</string>
     <string name="timeout_msg">伺服器忙碌中，請稍後再試</string>
     <string name="key_msg">請確認您的 API 金鑰是否有誤</string>
@@ -55,13 +56,11 @@
     <string name="welcome">歡迎使用 NotiSummary !</string>
     <string name="no_noti_permission">您的通知權限尚未開啟</string>
     <string name="click_to_open_permission">點擊確認前往開啟</string>
-    <string name="noti_covered_dialog_title">通知隱私保護與設定</string>
-    <string name="noti_covered_dialog_content">為了保障使用者的隱私權，您可以選擇將通知的部分資訊從摘要範圍中排除。如欲調整此設定，可前往「⚙️」>「摘要範圍 (通知資訊)」進行調整。</string>
+    <string name="noti_covered_dialog_title">隱私權政策與通知資料設定</string>
+    <string name="noti_covered_dialog_content">NotiSummary 透過 ChatGPT 進行手機通知的文字摘要。因此，雖然本 APP 不收集您的使用資料,但對 OpenAI 的隱私權做法或內容,我們不予以干涉及負責。若您對個資隱私有所顧慮，您可以選擇將通知的部分資訊從摘要範圍中排除。如欲調整此設定，可前往「⚙️」>「摘要範圍 (通知資訊)」進行調整。</string>
     <string name="default_summary_prompt">請用一段文字摘要以下手機通知</string>
     <string name="search_app">搜尋</string>
     <string name="push_notification">開啟通知提醒</string>
-    <string name="privacy_URL">https://hackmd.io/@noti-summary/privacy-policy-zh</string>
-    <string name="feedback_URL">https://forms.gle/LSe1fZP2sDnXUtC59</string>
     <string name="every">每</string>
     <string name="everyDay">每天</string>
     <string name="everyWeekend">每週末</string>
@@ -86,4 +85,9 @@
     <string name="app_filter_description">您可以在這裡選擇要納入通知摘要的應用程式。</string>
     <string name="noti_filter_description">您可以在這裡選擇要納入摘要的通知資訊。</string>
     <string name="api_key_description">您每天可以進行一定次數的免費摘要，但您若使用自己的 OpenAI API 金鑰，則沒有這個限制。若您要使用自己的 API 金鑰，可以點擊右下角按鈕進行新增。</string>
+    <string name="prompt_opening">以下是我的手機通知：</string>
+    <string name="prompt_subsummary1">這些文字個別是我部份手機通知的摘要，產生這些摘要的指令為「</string>
+    <string name="prompt_subsummary2">」。請在這個指示下整合這些摘要。</string>
+    <string name="key_requirement">NotiSummary 需要您使用自己的OpenAI金鑰。</string>
+    <string name="using">使用</string>
 </resources>

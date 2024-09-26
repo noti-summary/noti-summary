@@ -4,19 +4,25 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.*
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import org.muilab.noti.summary.model.NotiUnit
 import org.muilab.noti.summary.service.SummaryService
+import org.muilab.noti.summary.util.TAG
 import org.muilab.noti.summary.util.getAppFilter
 import org.muilab.noti.summary.util.getDatabaseNotifications
 import org.muilab.noti.summary.util.getNotiDrawer
 import org.muilab.noti.summary.view.home.SummaryResponse
+import kotlin.coroutines.cancellation.CancellationException
 
 class SummaryViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -82,7 +88,12 @@ class SummaryViewModel(application: Application) : AndroidViewModel(application)
 
     fun getSummaryText() {
         val intent = Intent("edu.mui.noti.summary.REQUEST_ALLNOTIS")
-        LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+        Log.d(TAG, "getSummaryText");
+        LocalBroadcastManager.getInstance(context).sendBroadcast(
+            intent.apply {
+                setPackage(context.packageName)
+            }
+        )
     }
 
     fun updateStatus() {
@@ -98,8 +109,21 @@ class SummaryViewModel(application: Application) : AndroidViewModel(application)
     fun updateSummaryText(activeKeys: ArrayList<Pair<String, String>>, isScheduled: Boolean) {
         _result.postValue(context.getString(SummaryResponse.GENERATING.message))
         viewModelScope.launch {
-            val responseMessage = summaryService.sendToServer(activeKeys, isScheduled)
-            _result.postValue(responseMessage)
+            try {
+                val timeoutThreshold = 600000L
+                withTimeout(timeoutThreshold) {
+                    val responseMessage = summaryService.sendToServer(activeKeys, isScheduled)
+                    _result.postValue(responseMessage)
+                }
+            } catch (e: TimeoutCancellationException) {
+                _result.postValue(context.getString(SummaryResponse.TIMEOUT_ERROR.message))
+            } catch (e: java.util.concurrent.CancellationException) {
+                _result.postValue(context.getString(SummaryResponse.TIMEOUT_ERROR.message))
+            } catch (e: CancellationException) {
+                _result.postValue(context.getString(SummaryResponse.TIMEOUT_ERROR.message))
+            } catch (e: Exception) {
+                _result.postValue(context.getString(SummaryResponse.UNKNOWN_ERROR.message))
+            }
             resetNotiDrawer()
         }
     }

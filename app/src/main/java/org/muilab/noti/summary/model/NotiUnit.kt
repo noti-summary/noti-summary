@@ -126,9 +126,9 @@ data class NotiUnit(
         title = replaceChars(title)
 
         // content
-        content = sbn.notification?.extras?.getCharSequence(Notification.EXTRA_TEXT).toString()
+        content = sbn.notification?.extras?.getCharSequence(Notification.EXTRA_BIG_TEXT).toString()
         if (content.isBlank())
-            content = sbn.notification?.extras?.getCharSequence(Notification.EXTRA_BIG_TEXT).toString()
+            content = sbn.notification?.extras?.getCharSequence(Notification.EXTRA_TEXT).toString()
         content = replaceChars(content)
     }
 }

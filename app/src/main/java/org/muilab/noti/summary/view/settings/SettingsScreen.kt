@@ -12,7 +12,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,7 +28,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import org.muilab.noti.summary.R
-import org.muilab.noti.summary.util.logUserAction
 import org.muilab.noti.summary.viewModel.APIKeyViewModel
 import org.muilab.noti.summary.viewModel.PromptViewModel
 import org.muilab.noti.summary.viewModel.ScheduleViewModel
@@ -44,8 +42,6 @@ enum class SettingScreenItem(var titleId: Int, var iconId: Int, var description:
     SettingAPI(R.string.openai_api_key, R.drawable.setting_key, R.string.api_key_description),
     Feedback(R.string.feedback, R.drawable.feedback, R.string.empty),
     About(R.string.about, R.drawable.about, R.string.empty),
-    Privacy(R.string.privacy_policy, R.drawable.privacy_policy, R.string.empty),
-    Recruitment(R.string.recruitment, R.drawable.participant, R.string.empty),
 }
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
@@ -71,7 +67,6 @@ fun SettingsScreen(
                 currentScreen = currentScreen,
                 canNavigateBack = navController.previousBackStackEntry != null,
                 navigateUp = {
-                    logUserAction("switchScreen", "Settings", context, metadata = "back")
                     navController.navigateUp()
                 }
             )
@@ -173,23 +168,18 @@ fun NavigateSetting(
             MainSettingScreen(context, navController)
         }
         composable(SettingScreenItem.SettingPrompt.name) {
-            LaunchedEffect(Unit) { logUserAction("switchScreen", "Prompt", context) }
             PromptScreen(context, promptViewModel)
         }
         composable(SettingScreenItem.SettingAPI.name) {
-            LaunchedEffect(Unit) { logUserAction("switchScreen", "Key", context) }
-            APIKeyScreen(context, apiKeyViewModel)
+            APIKeyScreen(apiKeyViewModel)
         }
         composable(SettingScreenItem.SettingScheduler.name) {
-            LaunchedEffect(Unit) { logUserAction("switchScreen", "Scheduler", context) }
             SchedulerScreen(context, scheduleViewModel)
         }
         composable(SettingScreenItem.SettingAppFilter.name) {
-            LaunchedEffect(Unit) { logUserAction("switchScreen", "AppFilter", context) }
             AppFilterScreen(context)
         }
         composable(SettingScreenItem.SettingNotiFilter.name) {
-            LaunchedEffect(Unit) { logUserAction("switchScreen", "NotiFilter", context) }
             NotiFilterScreen(context)
         }
         composable(SettingScreenItem.Feedback.name) {
@@ -197,12 +187,6 @@ fun NavigateSetting(
         }
         composable(SettingScreenItem.About.name) {
             AboutScreen()
-        }
-        composable(SettingScreenItem.Privacy.name) {
-            PrivacyScreen()
-        }
-        composable(SettingScreenItem.Recruitment.name) {
-            RecruitmentScreen()
         }
     }
 }

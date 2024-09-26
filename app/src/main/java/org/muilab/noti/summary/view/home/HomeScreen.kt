@@ -5,58 +5,68 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.Settings
-import android.util.Log
-import android.widget.Toast
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.LifecycleOwner
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.firestore.ktx.toObject
-import com.google.firebase.ktx.Firebase
 import com.simform.ssjetpackcomposeprogressbuttonlibrary.SSButtonState
 import com.simform.ssjetpackcomposeprogressbuttonlibrary.SSButtonType
 import com.simform.ssjetpackcomposeprogressbuttonlibrary.SSJetPackComposeProgressButtonMaterial3
 import org.muilab.noti.summary.R
-import org.muilab.noti.summary.database.firestore.FirestoreDocument
-import org.muilab.noti.summary.database.firestore.documentStateOf
-import org.muilab.noti.summary.maxCredit
-import org.muilab.noti.summary.model.UserCredit
-import org.muilab.noti.summary.util.TAG
-import org.muilab.noti.summary.util.logUserAction
 import org.muilab.noti.summary.viewModel.PromptViewModel
 import org.muilab.noti.summary.viewModel.SummaryViewModel
 
 @Composable
 fun HomeScreen(
     context: Context,
-    lifecycleOwner: LifecycleOwner,
     sumViewModel: SummaryViewModel,
     promptViewModel: PromptViewModel
 ) {
-
-    val sharedPref = context.getSharedPreferences("user", Context.MODE_PRIVATE)
-    val userId = sharedPref.getString("user_id", "000").toString()
 
     val (submitButtonState, setSubmitButtonState) = remember { mutableStateOf(SSButtonState.IDLE) }
 
     val drawerCardState = remember { mutableStateOf(true) }
     val summaryCardState = remember { mutableStateOf(true) }
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val minorHeight = (
         with(LocalDensity.current) {MaterialTheme.typography.bodyLarge.lineHeight.toDp()}
         + 32.dp + 50.dp + 110.dp
@@ -104,10 +114,6 @@ fun HomeScreen(
                             drawerCardState.value = if (!summaryCardState.value) {
                                 drawerCardState.value
                             } else {
-                                if (!drawerCardState.value)
-                                    logUserAction("cardExpand", "both", context)
-                                else
-                                    logUserAction("cardExpand", "summary", context)
                                 !drawerCardState.value
                             }
                         }) {
@@ -157,10 +163,6 @@ fun HomeScreen(
                             summaryCardState.value = if (!drawerCardState.value) {
                                 summaryCardState.value
                             } else {
-                                if (!summaryCardState.value)
-                                    logUserAction("cardExpand", "both", context)
-                                else
-                                    logUserAction("cardExpand", "drawer", context)
                                 !summaryCardState.value
                             }
                         }
@@ -178,7 +180,14 @@ fun HomeScreen(
                         )
                         if (summaryCardState.value) {
                             Spacer(modifier = Modifier.padding(16.dp))
-                            Credit(context, lifecycleOwner, userId)
+                            val apiSharedPref = context.getSharedPreferences("ApiPref", Context.MODE_PRIVATE)
+                            val userAPIKey = apiSharedPref.getString("userAPIKey", stringResource(R.string.key_not_provided))
+                            val displayAPIKey = "sk-**********${userAPIKey?.takeLast(4)}"
+                            val displayText = "${stringResource(R.string.using_ur_apikey)}\n$displayAPIKey"
+                            Text(
+                                text = displayText,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         if (!summaryCardState.value)
@@ -203,7 +212,15 @@ fun HomeScreen(
                 SummaryCard(context, sumViewModel, promptViewModel, submitButtonState, setSubmitButtonState)
             }
         }
-        SubmitButton(context, userId, sumViewModel, submitButtonState)
+        Row (
+            Modifier.fillMaxWidth().padding(top = 0.dp, bottom = 30.dp, start = 16.dp, end = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End
+        ) {
+            SubmitButton(screenWidth - 212.dp, sumViewModel, submitButtonState)
+            Spacer(Modifier.size(50.dp))
+            ModelToggle(context)
+        }
     }
 
     val appUpdateManager = AppUpdateManagerFactory.create(context)
@@ -221,12 +238,12 @@ fun HomeScreen(
             val packageName = context.packageName
             try {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).setPackage(packageName)
                 context.startActivity(intent)
             } catch (e: ActivityNotFoundException) {
                 // Google Play Store app is not installed on the device, open the Play Store website
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).setPackage(packageName)
                 context.startActivity(intent)
             }
         }
@@ -254,81 +271,51 @@ fun HomeScreen(
 }
 
 @Composable
-fun Credit(context: Context, lifecycleOwner: LifecycleOwner, userId: String) {
-
-    val documentRef = Firebase.firestore.collection("user").document(userId)
-    val (result) = remember { documentStateOf(documentRef, lifecycleOwner) }
-    var displayText by remember { mutableStateOf("${context.getString(R.string.daily_quota)}：- / $maxCredit") }
-
-    val sharedPref = context.getSharedPreferences("ApiPref", Context.MODE_PRIVATE)
-    val userAPIKey = sharedPref.getString("userAPIKey", stringResource(R.string.system_key))!!
-
-    if (userAPIKey == stringResource(R.string.system_key)) {
-        if (result is FirestoreDocument.Snapshot) {
-            displayText = if (result.snapshot.exists()) {
-                val res = result.snapshot.toObject<UserCredit>()!!
-                "${context.getString(R.string.daily_quota)}：${res.credit} / $maxCredit"
-            } else {
-                stringResource(SummaryResponse.NETWORK_ERROR.message)
-            }
-        }
-
-        Text(
-            text = displayText,
-            style = MaterialTheme.typography.labelMedium,
-        )
-    }
-}
-
-@Composable
 fun SubmitButton(
-    context: Context,
-    userId: String,
+    width: Dp,
     sumViewModel: SummaryViewModel,
     submitButtonState: SSButtonState
 ) {
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(bottom = 30.dp),
-        contentAlignment = Alignment.BottomCenter
-    ) {
+    Box (Modifier.width(width), contentAlignment = Alignment.BottomCenter) {
+
         SSJetPackComposeProgressButtonMaterial3(
-            type = SSButtonType.CIRCLE,
-            width = 300.dp,
+            type = SSButtonType.CLOCK,
+            width = 180.dp,
             height = 50.dp,
             onClick = {
-                if (submitButtonState != SSButtonState.LOADING) {
-                    val db = Firebase.firestore
-                    val docRef = db.collection("user").document(userId)
-                    docRef.get()
-                        .addOnSuccessListener { document ->
-                            if (document != null) {
-                                if (document.exists()) {
-                                    val res = document.toObject<UserCredit>()!!
-                                    if (res.credit > 0) {
-                                        logUserAction("genSummary", "Submit", context)
-                                        sumViewModel.getSummaryText()
-                                    } else {
-                                        Toast.makeText(
-                                            context,
-                                            context.getString(R.string.reached_limit),
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                        logUserAction("genSummary", "NoQuota", context)
-                                    }
-                                }
-                            }
-                        }
-                        .addOnFailureListener { exception ->
-                            Log.d(TAG, "get failed with ", exception)
-                        }
-                }
+                if (submitButtonState != SSButtonState.LOADING)
+                    sumViewModel.getSummaryText()
             },
             assetColor = MaterialTheme.colorScheme.onPrimary,
             text = stringResource(R.string.generate_summary),
             buttonState = submitButtonState
         )
     }
+}
+
+@Composable
+fun ModelToggle(context: Context) {
+
+    val sharedPref = context.getSharedPreferences("SummaryPref", Context.MODE_PRIVATE)
+    val modelChoice = remember { mutableStateOf(sharedPref.getBoolean("model", false)) }
+
+    Switch(
+        modifier = Modifier.width(50.dp),
+        checked = modelChoice.value,
+        onCheckedChange = {
+            modelChoice.value = !modelChoice.value
+            with (sharedPref.edit()) {
+                putBoolean("model", modelChoice.value)
+                apply()
+            }
+        },
+    )
+    Spacer(Modifier.size(10.dp))
+    Text (
+        text = "${stringResource(R.string.using)}\n" +
+                if (modelChoice.value) { "GPT-4" } else { "GPT-3.5" },
+        modifier = Modifier.width(70.dp),
+        textAlign = TextAlign.Center,
+    )
 }

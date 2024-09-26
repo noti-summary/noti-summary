@@ -51,14 +51,9 @@ fun addAlarm(context: Context, schedule: Schedule, isNotUpdate: Boolean = true) 
         /* triggerAtMillis = */ calendar.timeInMillis,
         /* operation = */ pendingIntent
     )
-
-    if (isNotUpdate)
-        logAlarm(context, "create", schedule.getTime(), schedule.week)
 }
 
 fun updateAlarm(context: Context, schedule: Schedule) {
-    Log.d("updateAlarm", "time=${schedule.getTime()}")
-    logAlarm(context, "update", schedule.getTime(), schedule.week)
     deleteAlarm(context, schedule, isNotUpdate = false)
     addAlarm(context, schedule, isNotUpdate = false)
 }
@@ -77,15 +72,4 @@ fun deleteAlarm(context: Context, schedule: Schedule, isNotUpdate: Boolean = tru
 
     alarmManager.cancel(pendingIntent)
     pendingIntent.cancel()
-
-    if (isNotUpdate)
-        logAlarm(context, "delete", schedule.getTime(), schedule.week)
-}
-
-fun logAlarm(context: Context, action: String, scheduleTime: String, dayOfWeek: Int) {
-    val sharedPref = context.getSharedPreferences("user", Context.MODE_PRIVATE)
-    val userId = sharedPref.getString("user_id", "000").toString()
-    val timestamp = System.currentTimeMillis()
-    val scheduler = Scheduler(userId, timestamp, action, scheduleTime, dayOfWeek)
-    uploadData("scheduler", scheduler)
 }

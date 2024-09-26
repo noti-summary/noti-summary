@@ -1,6 +1,11 @@
 package org.muilab.noti.summary.view.component
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
@@ -36,13 +41,13 @@ fun NoPaddingAlertDialog(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 title?.let {
-                    CompositionLocalProvider() {
+                    CompositionLocalProvider {
                         val textStyle = MaterialTheme.typography.titleLarge
                         ProvideTextStyle(textStyle, it)
                     }
                 }
                 text?.let {
-                    CompositionLocalProvider() {
+                    CompositionLocalProvider {
                         val textStyle = MaterialTheme.typography.labelSmall
                         ProvideTextStyle(textStyle, it)
                     }

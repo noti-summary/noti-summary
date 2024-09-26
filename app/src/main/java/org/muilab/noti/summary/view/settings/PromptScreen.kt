@@ -26,7 +26,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.muilab.noti.summary.R
-import org.muilab.noti.summary.util.logUserAction
 import org.muilab.noti.summary.view.component.NoPaddingAlertDialog
 import org.muilab.noti.summary.viewModel.PromptViewModel
 
@@ -34,7 +33,7 @@ import org.muilab.noti.summary.viewModel.PromptViewModel
 fun PromptScreen(context: Context, promptViewModel: PromptViewModel) {
     MaterialTheme {
         PromptHistory(context, promptViewModel = promptViewModel)
-        AddButton(context, promptViewModel = promptViewModel)
+        AddButton(promptViewModel = promptViewModel)
     }
 }
 
@@ -70,7 +69,7 @@ fun PromptHistory(context: Context, promptViewModel: PromptViewModel) {
                     .wrapContentHeight()
                     .clip(RoundedCornerShape(12.dp))
                     .clickable {
-                        promptViewModel.choosePrompt(item, true)
+                        promptViewModel.choosePrompt(item)
                     },
                 colors = CardDefaults.cardColors(
                     containerColor =
@@ -110,7 +109,6 @@ fun PromptHistory(context: Context, promptViewModel: PromptViewModel) {
                             val clip = ClipData.newPlainText("copy prompt text", item)
                             clipboardManager.setPrimaryClip(clip)
                             Toast.makeText(context, context.getString(R.string.copied_to_clipboard), Toast.LENGTH_SHORT).show()
-                            promptViewModel.logPrompt("copy", mapOf(), item)
                         }
                     ) {
                         Icon(
@@ -154,8 +152,7 @@ fun PromptHistory(context: Context, promptViewModel: PromptViewModel) {
         if (currentEditPrompt.value != "") {
             promptViewModel.updatePrompt(
                 currentEditPromptOriginalValue,
-                currentEditPrompt.value,
-                editHistory
+                currentEditPrompt.value
             )
             currentEditPrompt.value = ""
             showDialog.value = false
@@ -168,7 +165,7 @@ fun PromptHistory(context: Context, promptViewModel: PromptViewModel) {
 }
 
 @Composable
-fun AddButton(context: Context, promptViewModel: PromptViewModel) {
+fun AddButton(promptViewModel: PromptViewModel) {
 
     val showDialog = remember { mutableStateOf(false) }
     val inputPrompt = remember { mutableStateOf("") }
@@ -182,7 +179,6 @@ fun AddButton(context: Context, promptViewModel: PromptViewModel) {
         FloatingActionButton(
             onClick = {
                 showDialog.value = true
-                logUserAction("promptDialog", "launch", context)
             },
         ) {
             Icon(Icons.Filled.Add, "add new prompt")
@@ -192,16 +188,14 @@ fun AddButton(context: Context, promptViewModel: PromptViewModel) {
     val confirmAction: (Map<String, String>) -> Unit = { editHistory ->
         if (inputPrompt.value != "") {
             Log.d("currentEditPrompt", inputPrompt.value)
-            promptViewModel.addPrompt(inputPrompt.value, editHistory)
+            promptViewModel.addPrompt(inputPrompt.value)
             inputPrompt.value = ""
             showDialog.value = false
         }
-        logUserAction("promptDialog", "confirm", context)
     }
 
     val dismissAction = {
         inputPrompt.value = ""
-        logUserAction("promptDialog", "dismiss", context)
     }
 
     if (showDialog.value) {

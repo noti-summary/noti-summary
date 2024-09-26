@@ -17,11 +17,23 @@ class BootUpReceiver : BroadcastReceiver() {
         if (intent.action.equals("android.intent.action.BOOT_COMPLETED")) {
             Log.d("BootUpReceiver", "onReceive: intent.action=BOOT_COMPLETED")
             val rescheduleServiceIntent = Intent(context, ReScheduleService::class.java)
-            context.startService(rescheduleServiceIntent)
+            context.startService(
+                rescheduleServiceIntent.apply {
+                    setPackage(context.packageName)
+                }
+            )
             val notiServiceIntent = Intent(context, NotiListenerService::class.java)
-            context.startService(notiServiceIntent)
+            context.startService(
+                notiServiceIntent.apply {
+                    setPackage(context.packageName)
+                }
+            )
             val summaryServiceIntent = Intent(context, SummaryService::class.java)
-            context.startService(summaryServiceIntent)
+            context.startService(
+                summaryServiceIntent.apply {
+                    setPackage(context.packageName)
+                }
+            )
         }
     }
 }

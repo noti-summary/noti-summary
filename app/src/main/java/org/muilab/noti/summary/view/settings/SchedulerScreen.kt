@@ -77,7 +77,6 @@ fun SchedulerScreen(context: Context, scheduleViewModel: ScheduleViewModel) {
                             apply()
                         }
                     }
-                    logUserAction("filter", "pushNotification", context, metadata = if (newState) "on" else "off")
                 }
             )
         }
@@ -97,6 +96,7 @@ fun SchedulerScreen(context: Context, scheduleViewModel: ScheduleViewModel) {
                         val intent = Intent().apply {
                             action = Settings.ACTION_APP_NOTIFICATION_SETTINGS
                             putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            setPackage(context.packageName)
                         }
                         context.startActivity(intent)
                     }
@@ -273,7 +273,6 @@ fun AddScheduleButton(context: Context, scheduleViewModel: ScheduleViewModel) {
             val newSchedule = scheduleViewModel.addNewSchedule(hour, minute)
             if (newSchedule != null) {
                 addAlarm(context, newSchedule)
-                logUserAction("schedulerDialog", "confirm", context)
             }
         }
     }
@@ -283,7 +282,6 @@ fun AddScheduleButton(context: Context, scheduleViewModel: ScheduleViewModel) {
         contentAlignment = Alignment.BottomEnd
     ) {
         FloatingActionButton(onClick = {
-            logUserAction("schedulerDialog", "launch", context)
             val calendar = Calendar.getInstance()
             val hour = calendar.get(Calendar.HOUR_OF_DAY)
             val minute = calendar.get(Calendar.MINUTE)

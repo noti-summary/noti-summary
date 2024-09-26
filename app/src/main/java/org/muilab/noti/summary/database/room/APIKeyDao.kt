@@ -3,13 +3,15 @@ package org.muilab.noti.summary.database.room
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 import org.muilab.noti.summary.model.APIKeyEntity
-import org.muilab.noti.summary.model.Prompt
 
 
 @Dao
 interface APIKeyDao {
     @Query("SELECT APIKey FROM api_key_pool")
     fun getAllAPI(): Flow<List<String>>
+
+    @Query("SELECT APIKey FROM api_key_pool")
+    fun getAllAPIStatic(): List<String>
 
     @Query("SELECT * FROM api_key_pool WHERE APIKey = :apiKey")
     fun getAPIByAPIKey(apiKey: String): APIKeyEntity?

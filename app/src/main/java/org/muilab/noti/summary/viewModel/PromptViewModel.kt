@@ -10,8 +10,6 @@ import kotlinx.coroutines.plus
 import org.muilab.noti.summary.R
 import org.muilab.noti.summary.database.room.PromptDatabase
 import org.muilab.noti.summary.model.Prompt
-import org.muilab.noti.summary.util.PromptAction
-import org.muilab.noti.summary.util.uploadData
 
 class PromptViewModel(application: Application, promptDatabase: PromptDatabase) :
     AndroidViewModel(application) {
@@ -37,49 +35,32 @@ class PromptViewModel(application: Application, promptDatabase: PromptDatabase) 
         _promptSentence.value = resultValue!!
     }
 
-    fun addPrompt(newPromptText: String, editHistory: Map<String, String>) {
+    fun addPrompt(newPromptText: String) {
         val updatePrompt = newPromptText.trim()
         scope.launch {
             promptDao.insertPromptIfNotExists(Prompt(0, updatePrompt))
         }
-        choosePrompt(updatePrompt, false)
-        logPrompt("create", editHistory, newPromptText)
+        choosePrompt(updatePrompt)
     }
 
-    fun choosePrompt(updatePrompt: String, userDecision: Boolean) {
+    fun choosePrompt(updatePrompt: String) {
         if (_promptSentence.value != updatePrompt) {
             _promptSentence.postValue(updatePrompt)
             sharedPreferences.edit().putString("curPrompt", updatePrompt).apply()
         }
-        if (userDecision)
-            logPrompt("switch", mapOf(), updatePrompt)
     }
 
-    fun getCurPrompt(): String {
-        return promptSentence.value ?: context.getString(R.string.default_summary_prompt)
-    }
-
-    fun updatePrompt(oldPrompt: String, newPrompt: String, editHistory: Map<String, String>) {
+    fun updatePrompt(oldPrompt: String, newPrompt: String) {
         scope.launch{
             promptDao.updatePromptText(oldPrompt, newPrompt)
-            choosePrompt(newPrompt, false)
+            choosePrompt(newPrompt)
         }
-        logPrompt("update", editHistory, newPrompt)
     }
 
     fun deletePrompt(prompt: String) {
         scope.launch {
             promptDao.deleteByPromptText(prompt)
         }
-        logPrompt("delete", mapOf(), prompt)
-        choosePrompt(defaultPrompt, false)
-    }
-
-    fun logPrompt(action: String, history: Map<String, String>, newPrompt: String) {
-        val sharedPref = context.getSharedPreferences("user", Context.MODE_PRIVATE)
-        val userId = sharedPref.getString("user_id", "000").toString()
-        val timestamp = System.currentTimeMillis()
-        val promptAction = PromptAction(userId, timestamp, action, history, newPrompt)
-        uploadData("promptAction", promptAction)
+        choosePrompt(defaultPrompt)
     }
 }

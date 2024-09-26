@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.muilab.noti.summary.R
-import org.muilab.noti.summary.util.logUserAction
 
 @Composable
 fun NotiFilterScreen(context: Context) {
@@ -69,8 +68,7 @@ fun NotiFilterScreen(context: Context) {
                                     availAttr.add("title")
                                 if (notiFilterMap[context.getString(R.string.content)] as Boolean)
                                     availAttr.add("content")
-                                val availAttrStr = availAttr.joinToString(separator = ",")
-                                logUserAction("filter", "notiFilterChange", context, metadata = availAttrStr)
+                                availAttr.joinToString(separator = ",")
                             }
                         )
                     }

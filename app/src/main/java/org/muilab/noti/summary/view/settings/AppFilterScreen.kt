@@ -33,10 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
-import org.muilab.noti.summary.util.AppScope
-import org.muilab.noti.summary.util.uploadData
 import org.muilab.noti.summary.R
-import org.muilab.noti.summary.util.logUserAction
 
 
 @SuppressLint("ServiceCast")
@@ -104,7 +101,6 @@ fun AppFilterScreen(context: Context) {
                     value = query,
                     onValueChange = {
                         query = it
-                        logUserAction("filter", "searchApp", context, metadata = query)
                     },
                     label = { Text(stringResource(R.string.search_app)) },
                     modifier = Modifier.fillMaxWidth(),
@@ -159,19 +155,10 @@ fun AppFilterScreen(context: Context) {
                                     putBoolean(packageInfo.packageName, newState)
                                     apply()
                                 }
-                                LogAppFilters(context, appFilterMap)
                             }
                         )
                     }
                 }
         }
     }
-}
-
-fun LogAppFilters(context: Context, appFilterMap: Map<String, Boolean>) {
-    val sharedPref = context.getSharedPreferences("user", Context.MODE_PRIVATE)
-    val userId = sharedPref.getString("user_id", "000").toString()
-    val timestamp = System.currentTimeMillis()
-    val appScope = AppScope(userId, timestamp, appFilterMap)
-    uploadData("appScope", appScope)
 }

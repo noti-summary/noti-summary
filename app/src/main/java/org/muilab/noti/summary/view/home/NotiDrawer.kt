@@ -22,7 +22,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.muilab.noti.summary.R
 import org.muilab.noti.summary.ui.theme.DarkColorScheme
-import org.muilab.noti.summary.util.logUserAction
 import org.muilab.noti.summary.viewModel.SummaryViewModel
 import java.lang.Float.max
 
@@ -148,12 +147,5 @@ fun NotiDrawer(context: Context, sumViewModel: SummaryViewModel) {
         }
 
         Canvas(modifier = Modifier.fillMaxSize().background(brush)) { }
-    }
-
-    state.apply {
-        val firstIndex = firstVisibleItemIndex
-        val lastIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index
-        if (!isScrollInProgress && lastIndex != null)
-            logUserAction("scroll", "drawer", context, "${firstIndex},${lastIndex}")
     }
 }

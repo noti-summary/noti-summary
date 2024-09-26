@@ -20,11 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.simform.ssjetpackcomposeprogressbuttonlibrary.SSButtonState
 import org.muilab.noti.summary.R
-import org.muilab.noti.summary.util.logSummary
-import org.muilab.noti.summary.util.logUserAction
 import org.muilab.noti.summary.viewModel.PromptViewModel
 import org.muilab.noti.summary.viewModel.SummaryViewModel
-import kotlin.math.round
 
 enum class SummaryResponse(val message: Int) {
     HINT(R.string.hint_msg),
@@ -34,7 +31,8 @@ enum class SummaryResponse(val message: Int) {
     SERVER_ERROR(R.string.server_err_msg),
     TIMEOUT_ERROR(R.string.timeout_msg),
     APIKEY_ERROR(R.string.key_msg),
-    QUOTA_ERROR(R.string.quota_msg)
+    QUOTA_ERROR(R.string.quota_msg),
+    UNKNOWN_ERROR(R.string.unknown_err_msg),
 }
 
 @Composable
@@ -89,13 +87,13 @@ fun SummaryCard(
                             result != stringResource(SummaryResponse.GENERATING.message) &&
                             result != stringResource(SummaryResponse.NO_NOTIFICATION.message) &&
                             result != stringResource(SummaryResponse.NETWORK_ERROR.message) &&
-                            result != stringResource(SummaryResponse.SERVER_ERROR.message) &&
+                            result != stringResource(SummaryResponse.UNKNOWN_ERROR.message) &&
                             result != stringResource(SummaryResponse.TIMEOUT_ERROR.message) &&
                             result != stringResource(SummaryResponse.APIKEY_ERROR.message) &&
                             result != stringResource(SummaryResponse.QUOTA_ERROR.message)
                         ) {
-                            DislikeButton(context, likeDislike, summaryPrefs)
-                            LikeButton(context, likeDislike, summaryPrefs)
+                            DislikeButton(likeDislike, summaryPrefs)
+                            LikeButton(likeDislike, summaryPrefs)
                         }
                     }
                 }
@@ -106,7 +104,7 @@ fun SummaryCard(
                 setSubmitButtonState(SSButtonState.LOADING)
             } else if (result == stringResource(SummaryResponse.NO_NOTIFICATION.message) ||
                        result == stringResource(SummaryResponse.NETWORK_ERROR.message) ||
-                       result == stringResource(SummaryResponse.SERVER_ERROR.message) ||
+                       result == stringResource(SummaryResponse.UNKNOWN_ERROR.message) ||
                        result == stringResource(SummaryResponse.TIMEOUT_ERROR.message) ||
                        result == stringResource(SummaryResponse.APIKEY_ERROR.message) ||
                        result == stringResource(SummaryResponse.QUOTA_ERROR.message)
@@ -121,20 +119,6 @@ fun SummaryCard(
         }
     }
 
-    fun isSummaryResult(): Boolean {
-        for (response in SummaryResponse.values()) {
-            val messageString = context.getString(response.message)
-            if (result == messageString)
-                return false
-        }
-        return true
-    }
-
-    scrollState.apply {
-        val scrollPercentage = round((value + textHeight).toDouble() * 10000 / (maxValue + textHeight)) / 100
-        if (!isScrollInProgress && isSummaryResult())
-            logUserAction("scroll", "summary", context, scrollPercentage.toString())
-    }
 }
 
 @Composable
@@ -154,7 +138,6 @@ fun CurrentPrompt(curPrompt: String) {
 
 @Composable
 fun LikeButton(
-    context: Context,
     likeDislike: MutableState<Int>,
     summaryPrefs: SharedPreferences
 ) {
@@ -166,7 +149,6 @@ fun LikeButton(
                 likeDislike.value = 1
             }
             summaryPrefs.edit().putInt("rating", likeDislike.value).apply()
-            logSummary(context)
         }
     ) {
         Icon(
@@ -179,7 +161,6 @@ fun LikeButton(
 
 @Composable
 fun DislikeButton(
-    context: Context,
     likeDislike: MutableState<Int>,
     summaryPrefs: SharedPreferences
 ) {
@@ -191,7 +172,6 @@ fun DislikeButton(
                 likeDislike.value = -1
             }
             summaryPrefs.edit().putInt("rating", likeDislike.value).apply()
-            logSummary(context)
         }
     ) {
         Icon(
